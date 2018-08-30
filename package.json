@@ -1,12 +1,12 @@
 {
-  "name": "sera",
+  "name": "@evius/serph",
   "version": "0.0.1",
   "description": "",
   "author": "Rahmat Albariqi <ra@evius.id>",
   "license": "MIT",
   "main": "dist/index.js",
   "bin": {
-    "sera": "./dist/index.js"
+    "serph": "./dist/index.js"
   },
   "engines": {
     "node": "~6.9.1",

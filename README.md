@@ -1,4 +1,4 @@
-# SERA
+# SERPH
 
 Minimalist static site server
 
