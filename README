@@ -15,3 +15,4 @@ Argument | Description
 ------------ | -------------
 `-p, --port <n>` | port to use
 `-s, --spa` | redirect all route to index.html (Single-Page-Application)
+
