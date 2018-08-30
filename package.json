@@ -12,6 +12,9 @@
     "node": "~6.9.1",
     "npm": ">=3.10.0"
   },
+  "keywords": [
+  	"http-server"
+  ],
   "scripts": {
     "prestart": "npm run -s build",
     "start": "node dist/index.js",
