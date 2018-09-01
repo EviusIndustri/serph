@@ -29,6 +29,9 @@ export default (sitePath, opts) => {
 				if(targetPath === '/') {
 					return res.sendFile(path.join(sitePath, `index.html`))
 				}
+				if(fs.existsSync(path.join(sitePath, targetPath, 'index.html'))) {
+					return res.sendfile(path.join(sitePath, targetPath, 'index.html'))
+				}
 				return res.sendFile(path.join(sitePath, `${targetPath}.html`), (err) => {
 					if(err) {
 						return res.send(views.page404().toString())
