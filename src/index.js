@@ -5,7 +5,8 @@ import morgan from 'morgan'
 import path from 'path'
 
 import log from './lib/log'
-import serve from './services/serve'
+
+import sera from '@evius/sera'
 
 import {existsSync} from 'fs'
 
@@ -70,7 +71,7 @@ program
 			const app = express()
 		
 			app.use(morganMiddleware)
-			app.use('*', serve(APP_DIR, OPTS))
+			app.use('*', sera(APP_DIR, OPTS))
 		
 			app.listen(OPTS.port, () => {
 				console.log(log.bold(`Serph is up on ${log.url(`localhost:${OPTS.port}`)}`))
