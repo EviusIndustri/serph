@@ -71,7 +71,27 @@ program
 			const app = express()
 		
 			app.use(morganMiddleware)
-			app.use('*', sera(APP_DIR, OPTS))
+			// app.use('*', sera(APP_DIR, OPTS))
+
+			app.use('*', async (req, res) => {
+				const targetSite = APP_DIR
+				const targetPath = req.originalUrl.split('?')[0]
+		
+				if(existsSync(targetSite)) {
+					const result = await sera(targetSite, targetPath, {
+						spa: options.spa,
+						showHidden: options.hidden
+					})
+					if(result.status === 200) {
+						if(!result.type) {
+							res.type = result.type
+						}
+						return res.sendFile(result.path, result.options)
+					}
+					return res.status(result.status).send('error boy')
+				}
+				return res.status(404).send('url not found')
+			})
 		
 			app.listen(OPTS.port, () => {
 				console.log(log.bold(`Serph is up on ${log.url(`localhost:${OPTS.port}`)}`))
