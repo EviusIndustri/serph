@@ -1,16 +1,20 @@
 #!/usr/bin/env node
 
-import express from 'express'
-import morgan from 'morgan'
+import zlib from 'zlib'
 import path from 'path'
-
-import log from './lib/log'
-
-import sera from '@evius/sera'
-
 import {existsSync} from 'fs'
 
+import express from 'express'
+import morgan from 'morgan'
+import request from 'request'
+import tar from 'tar-fs'
+
+import toStream from 'buffer-to-stream'
+import _cliProgress from 'cli-progress'
 import program from 'commander'
+
+import log from './lib/log'
+import sera from '@evius/sera'
 
 const successOrError = (statusCode) => {
 	if(statusCode >= 400) {
@@ -96,6 +100,50 @@ program
 			app.listen(OPTS.port, () => {
 				console.log(log.bold(`Serph is up on ${log.url(`localhost:${OPTS.port}`)}`))
 			})
+		}
+		else{
+			console.error(log.error('file index.html not found'))
+		}
+	})
+
+program
+	.command('deploy')
+	.description('deploy your static site')
+	.action(function () {
+		cmdValue = 'deploy'
+		
+		const APP_DIR = process.cwd()
+		
+		if(existsSync(path.join(APP_DIR, 'index.html'))) {
+			let buff = []
+	
+			const tarStream = tar.pack(APP_DIR).pipe(zlib.Gzip())
+
+			let totalData = 0
+			tarStream.on('data', (data) => {
+				totalData += data.length
+				buff.push(data)
+			})
+			tarStream.on('end', () => {
+				const progressBar = new _cliProgress.Bar({}, _cliProgress.Presets.shades_classic)
+				progressBar.start(100, 0)
+				let progress = 0
+				const readable = toStream(Buffer.concat(buff))
+				readable.on('data', (data) => {
+					progress += data.length
+					progressBar.update(progress*100/totalData)
+				})
+				readable.on('end', () => {
+					progressBar.stop()
+				})
+
+				const r = request.post({url: 'http://localhost:8080/upload'}, (err, httpResponse, body) => {
+					console.log(body)
+				})
+
+				readable.pipe(r)
+			})
+
 		}
 		else{
 			console.error(log.error('file index.html not found'))
