@@ -38,6 +38,7 @@
     "express": "^4.16.3",
     "express-reload": "^1.1.0",
     "express-subdomain": "^1.0.5",
+    "ipfs": "^0.31.7",
     "mime-types": "^2.1.20",
     "morgan": "^1.9.0",
     "nanohtml": "^1.2.4",

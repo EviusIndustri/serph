@@ -13,8 +13,33 @@ import toStream from 'buffer-to-stream'
 import _cliProgress from 'cli-progress'
 import program from 'commander'
 
+const IPFS = require('ipfs')
+const node = new IPFS()
+
 import log from './lib/log'
 import sera from '@evius/sera'
+
+const fs = require('fs');
+
+function walkSync (dir, filelist = []) {
+	fs.readdirSync(dir).forEach(file => {
+		const dirFile = path.join(dir, file)
+		try {
+			filelist = walkSync(dirFile, filelist)
+		}
+		catch (err) {
+			if (err.code === 'ENOTDIR' || err.code === 'EBUSY') filelist = [...filelist, dirFile]
+			else throw err
+		}
+	})
+	return filelist
+}
+
+const formatBytes = (a, b) => {
+	if(0==a) return'0 Bytes'
+	var c=1024,d=b||2,e=['Bytes','KB','MB','GB','TB','PB','EB','ZB','YB'],f=Math.floor(Math.log(a)/Math.log(c))
+	return parseFloat((a/Math.pow(c,f)).toFixed(d))+' '+e[f]
+}
 
 const successOrError = (statusCode) => {
 	if(statusCode >= 400) {
@@ -109,12 +134,14 @@ program
 program
 	.command('deploy')
 	.description('deploy your static site')
-	.action(function () {
+	.action(async function () {
 		cmdValue = 'deploy'
 		
 		const APP_DIR = process.cwd()
 		
 		if(existsSync(path.join(APP_DIR, 'index.html'))) {
+			console.log(`ᑀ preparing files`)
+
 			let buff = []
 	
 			const tarStream = tar.pack(APP_DIR).pipe(zlib.Gzip())
@@ -125,7 +152,10 @@ program
 				buff.push(data)
 			})
 			tarStream.on('end', () => {
-				const progressBar = new _cliProgress.Bar({}, _cliProgress.Presets.shades_classic)
+				console.log(`ᑀ deploying to ${log.bold('Evius Network')} [${formatBytes(totalData)}]`)
+				const progressBar = new _cliProgress.Bar({
+					format: '  + upload [{bar}] {percentage}% | ETA: {eta}s'
+				})
 				progressBar.start(100, 0)
 				let progress = 0
 				const readable = toStream(Buffer.concat(buff))
@@ -135,10 +165,12 @@ program
 				})
 				readable.on('end', () => {
 					progressBar.stop()
+					console.log(`ᑀ pushing to ${log.bold('InterPlanetary File System')}`)
 				})
 
-				const r = request.post({url: 'http://localhost:8080/upload'}, (err, httpResponse, body) => {
-					console.log(body)
+				const r = request.post({url: 'http://localhost:6969/upload'}, (err, httpResponse, body) => {
+					const data = JSON.parse(body).data
+					console.log(`ᑀ online at ${log.url(data.url)}`)
 				})
 
 				readable.pipe(r)
