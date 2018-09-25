@@ -2,7 +2,7 @@
 
 import zlib from 'zlib'
 import path from 'path'
-import {existsSync} from 'fs'
+import {existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync} from 'fs'
 
 import express from 'express'
 import morgan from 'morgan'
@@ -11,29 +11,27 @@ import tar from 'tar-fs'
 
 import toStream from 'buffer-to-stream'
 import _cliProgress from 'cli-progress'
+import os from 'os'
+import readline from 'readline'
 import program from 'commander'
-
-const IPFS = require('ipfs')
-const node = new IPFS()
 
 import log from './lib/log'
 import sera from '@evius/sera'
+import atma from '@evius/atma-client'
 
-const fs = require('fs');
-
-function walkSync (dir, filelist = []) {
-	fs.readdirSync(dir).forEach(file => {
-		const dirFile = path.join(dir, file)
-		try {
-			filelist = walkSync(dirFile, filelist)
-		}
-		catch (err) {
-			if (err.code === 'ENOTDIR' || err.code === 'EBUSY') filelist = [...filelist, dirFile]
-			else throw err
-		}
-	})
-	return filelist
+const homedir = os.homedir()
+if(!existsSync(path.join(homedir, '.serph'))) {
+	mkdirSync(path.join(homedir, '.serph'))
 }
+
+const rl = readline.createInterface({
+	input: process.stdin,
+	output: process.stdout
+})
+
+atma.init({
+	server: 'http://localhost:6969'
+})
 
 const formatBytes = (a, b) => {
 	if(0==a) return'0 Bytes'
@@ -138,47 +136,199 @@ program
 		cmdValue = 'deploy'
 		
 		const APP_DIR = process.cwd()
-		
+
+		// get access token
 		if(existsSync(path.join(APP_DIR, 'index.html'))) {
-			console.log(`ᑀ preparing files`)
+			if(existsSync(path.join(APP_DIR, 'serph.json'))) {
+				const config = readFileSync(path.join(APP_DIR, 'serph.json'))
+				try {
+					const parseConfig = JSON.parse(config)
 
-			let buff = []
-	
-			const tarStream = tar.pack(APP_DIR).pipe(zlib.Gzip())
+					const authFile = path.join(homedir, '.serph', 'auth.json')
+					
+					if(existsSync(authFile)) {
+						const auth = JSON.parse(readFileSync(authFile))
+						if(auth.token) {
+							try {
+								const response = await atma.requestAccessToken('serph', auth.token)
+								const accessToken = response.data.data
 
-			let totalData = 0
-			tarStream.on('data', (data) => {
-				totalData += data.length
-				buff.push(data)
-			})
-			tarStream.on('end', () => {
-				console.log(`ᑀ deploying to ${log.bold('Evius Network')} [${formatBytes(totalData)}]`)
-				const progressBar = new _cliProgress.Bar({
-					format: '  + upload [{bar}] {percentage}% | ETA: {eta}s'
-				})
-				progressBar.start(100, 0)
-				let progress = 0
-				const readable = toStream(Buffer.concat(buff))
-				readable.on('data', (data) => {
-					progress += data.length
-					progressBar.update(progress*100/totalData)
-				})
-				readable.on('end', () => {
-					progressBar.stop()
-					console.log(`ᑀ pushing to ${log.bold('InterPlanetary File System')}`)
-				})
+								request.post({
+									url: 'http://localhost:7000/api/files/config',
+									form: parseConfig,
+									headers: {
+										authorization: `bearer ${accessToken}`
+									}
+								}, (err, httpResponse, body) => {
+									if(err) {
+										console.log(err)
+										return process.exit(1)
+									}
+									if(httpResponse.statusCode >= 400) {
+										console.log(`ᑀ ${JSON.parse(body).message}`)
+										return process.exit(1)
+									}
+									else{
+										console.log(`ᑀ preparing files`)
 
-				const r = request.post({url: 'http://localhost:6969/upload'}, (err, httpResponse, body) => {
-					const data = JSON.parse(body).data
-					console.log(`ᑀ online at ${log.url(data.url)}`)
-				})
+										let buff = []
+								
+										const tarStream = tar.pack(APP_DIR).pipe(zlib.Gzip())
 
-				readable.pipe(r)
-			})
+										let totalData = 0
+										tarStream.on('data', (data) => {
+											totalData += data.length
+											buff.push(data)
+										})
+										tarStream.on('end', () => {
+											console.log(`ᑀ deploying to ${log.bold('serph.network')} [${formatBytes(totalData)}]`)
+											const progressBar = new _cliProgress.Bar({
+												format: '  ᑀ upload [{bar}] {percentage}% | ETA: {eta}s'
+											})
+											progressBar.start(100, 0)
+											let progress = 0
+											const readable = toStream(Buffer.concat(buff))
+											readable.on('error', (err) => {
+												throw err
+											})
+											readable.on('data', (data) => {
+												progress += data.length
+												progressBar.update(progress*100/totalData)
+											})
+											readable.on('end', () => {
+												progressBar.stop()
+											})
 
+											const r = request.post({
+												url: 'http://localhost:7000/api/files/upload-cli',
+												headers: {
+													authorization: `bearer ${accessToken}`
+												}
+											}, (err, httpResponse, body) => {
+												if(err) {
+													console.log(err)
+													return process.exit(1)
+												}
+												const data = JSON.parse(body).data
+												if(data.alias && parseConfig.alias && data.alias !== parseConfig.alias) {
+													console.log(`ᑀ alias ${log.bold(parseConfig.alias)} already used, using randomly generated alias`)
+												}
+												console.log(`ᑀ online at ${log.url(`https://${data.alias}.serph.network`)}`)
+												return process.exit(0)
+											})
+
+											readable.pipe(r)
+										})
+									}
+								})
+							} catch (err) {
+								console.error(err.response)
+								if(err.response.data) {
+									console.log('please login')
+									unlinkSync(authFile)
+								}
+								process.exit(1)
+							}
+						}
+						else{
+							console.log('please login using serph login')
+							process.exit(0)
+						}
+					}
+					else{
+						console.log('please login using serph login')
+						process.exit(0)
+					}
+				} catch (err) {
+					console.log(err)
+					process.exit(1)
+				}
+			}
+			else{
+				console.error(`${log.error('serph.json')} not found`)
+				process.exit(1)
+			}
 		}
 		else{
-			console.error(log.error('file index.html not found'))
+			console.error(`${log.error('index.html')} not found`)
+			process.exit(1)
+		}
+	})
+
+program
+	.command('login')
+	.description('login with evius account')
+	.action(function () {
+		cmdValue = 'login'
+		
+		const authFile = path.join(homedir, '.serph', 'auth.json')
+		if(existsSync(authFile)) {
+			const auth = JSON.parse(readFileSync(authFile))
+			if(auth.token) {
+				console.log(`Already logged in with ${auth.email}`)
+				process.exit(0)
+			}
+			else{
+				rl.question('Email: ', async (answer) => {
+					console.log('Logging in...')
+					try {
+						const response = await atma.login(answer)
+						console.log('Check your email')
+						console.log(`Waiting confirmation with code: ${response.data.data.codename}`)
+						atma.onAuth((response) => {
+							if(response) {
+								console.log('login successful')
+								Object.assign(response.data, {email: answer})
+								writeFileSync(path.join(homedir, '.serph', 'auth.json'), JSON.stringify(response.data))
+								process.exit(0)
+							}
+						})
+					} catch (err) {
+						console.error(err.response.data)
+						process.exit(1)
+					}
+				})
+			}
+		}
+		else{
+			rl.question('Email: ', async (answer) => {
+				console.log('Logging in...')
+				try {
+					const response = await atma.login(answer)
+					console.log('Check your email')
+					console.log(`Waiting confirmation with code: ${response.data.data.codename}`)
+					atma.onAuth((response) => {
+						if(response) {
+							console.log('login successful')
+							Object.assign(response.data, {email: answer})
+							writeFileSync(path.join(homedir, '.serph', 'auth.json'), JSON.stringify(response.data))
+							process.exit(0)
+						}
+					})
+				} catch (err) {
+					console.error(err.response.data)
+					process.exit(1)
+				}
+			})
+		}
+	})
+
+program
+	.command('logout')
+	.description('logout evius account in this system')
+	.action(function () {
+		cmdValue = 'login'
+		const authFile = path.join(homedir, '.serph', 'auth.json')
+		if(existsSync(authFile)) {
+			const auth = JSON.parse(readFileSync(authFile))
+			atma.logout(auth.token)
+			unlinkSync(authFile)
+			console.log('Successfully logged out')
+			process.exit(0)
+		}
+		else{
+			console.log('Not logged in')
+			process.exit(0)
 		}
 	})
 
