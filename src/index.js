@@ -1,23 +1,25 @@
 #!/usr/bin/env node
 
-import zlib from 'zlib'
-import path from 'path'
-import {existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync} from 'fs'
+import path, { sep } from 'path'
+var recursive = require('recursive-readdir')
+import {existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync, statSync} from 'fs'
+
+const dagPB = require('ipld-dag-pb')
+const UnixFS = require('ipfs-unixfs')
 
 import express from 'express'
 import morgan from 'morgan'
 import request from 'request'
-import tar from 'tar-fs'
 
-import toStream from 'buffer-to-stream'
-import _cliProgress from 'cli-progress'
 import os from 'os'
 import readline from 'readline'
 import program from 'commander'
 
-import log from './lib/log'
 import sera from '@evius/sera'
 import atma from '@evius/atma-client'
+
+import log from './lib/log'
+import deploy from './lib/deploy'
 
 const homedir = os.homedir()
 if(!existsSync(path.join(homedir, '.serph'))) {
@@ -32,12 +34,6 @@ const rl = readline.createInterface({
 atma.init({
 	server: 'http://localhost:6969'
 })
-
-const formatBytes = (a, b) => {
-	if(0==a) return'0 Bytes'
-	var c=1024,d=b||2,e=['Bytes','KB','MB','GB','TB','PB','EB','ZB','YB'],f=Math.floor(Math.log(a)/Math.log(c))
-	return parseFloat((a/Math.pow(c,f)).toFixed(d))+' '+e[f]
-}
 
 const successOrError = (statusCode) => {
 	if(statusCode >= 400) {
@@ -129,132 +125,170 @@ program
 		}
 	})
 
+
+
 program
 	.command('deploy')
 	.description('deploy your static site')
 	.action(async function () {
 		cmdValue = 'deploy'
 		
+		deploy()
+	})
+
+program
+	.command('test')
+	.action(function () {
+		cmdValue = 'test'
+
 		const APP_DIR = process.cwd()
+		const APP_DIR_SPLIT = APP_DIR.split(sep)
+		const APP_INDEX = APP_DIR_SPLIT.length
 
-		// get access token
-		if(existsSync(path.join(APP_DIR, 'index.html'))) {
-			if(existsSync(path.join(APP_DIR, 'serph.json'))) {
-				const config = readFileSync(path.join(APP_DIR, 'serph.json'))
+		recursive(APP_DIR, ['.*'], async (err, files) => {
+			const filesStats = files.map((f) => ({
+				path: f,
+				isDir: statSync(f).isDirectory()
+			}))
+			const filesFilter = filesStats.filter((f) => !f.isDir)
+			const final = await Promise.all(filesFilter.map((f) => {
+				return new Promise((resolve, reject) => {
+					const buff = readFileSync(f.path)
+					const file = new UnixFS('file', buff)
+					dagPB.DAGNode.create(file.marshal(), (err, node) => {
+						if(err) return reject(err)
+						resolve({
+							path: f.path,
+							hash: node._cid.toBaseEncodedString()
+						})
+					})
+				})
+			}))
+
+			const finalTransform = final.map((f) => {
+				const PATH_SPLIT = f.path.split(sep)
+				const finalPath = `${PATH_SPLIT.slice(APP_INDEX).join(sep)}`
+				return {
+					path: finalPath,
+					hash: f.hash,
+					address: {
+						[`/${finalPath}`]: f.hash
+					}
+				}
+			})
+
+			const authFile = path.join(homedir, '.serph', 'auth.json')
+			const auth = JSON.parse(readFileSync(authFile))
+			const response = await atma.requestAccessToken('serph', auth.token)
+			const accessToken = response.data.data
+
+			request.post({
+				url: 'http://localhost:7000/api/files/prepare',
+				form: {
+					filesAddress: JSON.stringify(finalTransform)
+				},
+				headers: {
+					authorization: `bearer ${accessToken}`
+				}
+			}, (err, httpResponse, body) => {
+				if(err) {
+					console.log(err)
+					return process.exit(1)
+				}
 				try {
-					const parseConfig = JSON.parse(config)
+					const parseBody = JSON.parse(body)
 
-					const authFile = path.join(homedir, '.serph', 'auth.json')
-					
-					if(existsSync(authFile)) {
-						const auth = JSON.parse(readFileSync(authFile))
-						if(auth.token) {
-							try {
-								const response = await atma.requestAccessToken('serph', auth.token)
-								const accessToken = response.data.data
+					// console.log(parseBody.data)
 
-								request.post({
-									url: 'http://localhost:7000/api/files/config',
-									form: parseConfig,
-									headers: {
-										authorization: `bearer ${accessToken}`
-									}
-								}, (err, httpResponse, body) => {
-									if(err) {
-										console.log(err)
-										return process.exit(1)
-									}
-									if(httpResponse.statusCode >= 400) {
-										console.log(`ᑀ ${JSON.parse(body).message}`)
-										return process.exit(1)
-									}
-									else{
-										console.log(`ᑀ preparing files`)
+					const filesToUploadPath = parseBody.data.filesToUpload.map((f) => (f.path))
 
-										let buff = []
-								
-										const tarStream = tar.pack(APP_DIR).pipe(zlib.Gzip())
-
-										let totalData = 0
-										tarStream.on('data', (data) => {
-											totalData += data.length
-											buff.push(data)
-										})
-										tarStream.on('end', () => {
-											console.log(`ᑀ deploying to ${log.bold('serph.network')} [${formatBytes(totalData)}]`)
-											const progressBar = new _cliProgress.Bar({
-												format: '  ᑀ upload [{bar}] {percentage}% | ETA: {eta}s'
-											})
-											progressBar.start(100, 0)
-											let progress = 0
-											const readable = toStream(Buffer.concat(buff))
-											readable.on('error', (err) => {
-												throw err
-											})
-											readable.on('data', (data) => {
-												progress += data.length
-												progressBar.update(progress*100/totalData)
-											})
-											readable.on('end', () => {
-												progressBar.stop()
-											})
-
-											const r = request.post({
-												url: 'http://localhost:7000/api/files/upload-cli',
-												headers: {
-													authorization: `bearer ${accessToken}`
-												}
-											}, (err, httpResponse, body) => {
-												if(err) {
-													console.log(err)
-													return process.exit(1)
-												}
-												const data = JSON.parse(body).data
-												if(data.alias && parseConfig.alias && data.alias !== parseConfig.alias) {
-													console.log(`ᑀ alias ${log.bold(parseConfig.alias)} already used, using randomly generated alias`)
-												}
-												console.log(`ᑀ online at ${log.url(`https://${data.alias}.serph.network`)}`)
-												return process.exit(0)
-											})
-
-											readable.pipe(r)
-										})
-									}
-								})
-							} catch (err) {
-								console.error(err.response)
-								if(err.response.data) {
-									console.log('please login')
-									unlinkSync(authFile)
-								}
-								process.exit(1)
-							}
-						}
-						else{
-							console.log('please login using serph login')
-							process.exit(0)
-						}
+					if(filesToUploadPath.length > 0) {
+						console.log(`uploading ${filesToUploadPath.length} files`)
+						deploy(parseBody.data.deploymentPath, filesToUploadPath)
 					}
 					else{
-						console.log('please login using serph login')
+						console.log('nothing to upload')
 						process.exit(0)
 					}
+
+					// return process.exit(0)	
 				} catch (err) {
 					console.log(err)
 					process.exit(1)
 				}
+			})
+		})
+	})
+
+program
+	.command('link')
+	.description('create new link to your deployment')
+	.arguments('<deployment> <new_link>')
+	.action(async function (deployment, new_link) {
+		cmdValue = 'link'
+
+		const authFile = path.join(homedir, '.serph', 'auth.json')
+		if(existsSync(authFile)) {
+			const auth = JSON.parse(readFileSync(authFile))
+			if(auth.token) {
+				try {
+					const response = await atma.requestAccessToken('serph', auth.token)
+					const accessToken = response.data.data
+					console.log(`ᑀ authenticating...`)
+					request.post({
+						url: 'http://localhost:7000/api/links',
+						form: {
+							link: new_link,
+							target: deployment
+						},
+						headers: {
+							authorization: `bearer ${accessToken}`
+						}
+					}, (err, httpResponse, body) => {
+						if(err) {
+							console.log(err)
+							return process.exit(1)
+						}
+						try {
+							const parseBody = JSON.parse(body)
+
+							if(parseBody.status === 'error') {
+								console.log(`${log.error(`ᑀ deployment ${deployment} is not found!`)}`)
+								return process.exit(1)
+							}
+							else if(parseBody.status === 'already_used') {
+								console.log(`${log.error(`ᑀ link ${new_link} is already used!`)}`)
+								return process.exit(1)
+							}
+
+							console.log(`ᑀ ${log.bold(new_link)} is now linking to deployment (${log.bold(deployment)})`)
+							const data = parseBody.data
+							console.log(`ᑀ online at ${log.url(`https://${data.link}.serph.network`)}`)
+							return process.exit(0)	
+						} catch (err) {
+							console.log(err)
+							process.exit(1)
+						}
+					})
+				} catch (err) {
+					console.error(err.response)
+					if(err.response.data) {
+						console.log('please login')
+						unlinkSync(authFile)
+					}
+					process.exit(1)
+				}
 			}
 			else{
-				console.error(`${log.error('serph.json')} not found`)
-				process.exit(1)
+				console.log('please login using serph login')
+				process.exit(0)
 			}
 		}
 		else{
-			console.error(`${log.error('index.html')} not found`)
-			process.exit(1)
+			console.log('please login using serph login')
+			process.exit(0)
 		}
 	})
-
 program
 	.command('login')
 	.description('login with evius account')
