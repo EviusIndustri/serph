@@ -95,11 +95,14 @@ const pre = async (user) => {
 }
 
 const main = async (user, deploymentPath, filesToUpload) => {
-	return new Promise((resolve) => {
+	return new Promise(async (resolve) => {
 		const APP_DIR = process.cwd()
 
 		if(existsSync(path.join(APP_DIR, 'index.html'))) {
 			console.log(`> packing ${log.bold(filesToUpload.length)} files...`)
+
+			let [accessToken, _err] = await utils.auth.requestAccessToken(user.token)
+			if(_err) return console.error(_err)
 
 			let buff = []
 
@@ -112,7 +115,7 @@ const main = async (user, deploymentPath, filesToUpload) => {
 				totalData += data.length
 				buff.push(data)
 			})
-			tarStream.on('end', async () => {
+			tarStream.on('end', () => {
 				console.log(`> deploying to ${log.bold('serph.network')} [${utils.formatBytes(totalData)}]`)
 				const progressBar = new _cliProgress.Bar({
 					format: '  > upload [{bar}] {percentage}% | ETA: {eta}s'
@@ -132,9 +135,6 @@ const main = async (user, deploymentPath, filesToUpload) => {
 					progressBar.stop()
 					console.log(`> building your deployment...`)
 				})
-
-				let [accessToken, _err] = await utils.auth.requestAccessToken(user.token)
-				if(_err) return console.error(_err)
 
 				const r = request.post({
 					url: 'http://localhost:7000/api/files/upload-cli',
