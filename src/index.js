@@ -1,18 +1,13 @@
 #!/usr/bin/env node
 
-import path, { sep } from 'path'
-var recursive = require('recursive-readdir')
-import {existsSync, mkdirSync, writeFileSync, readFileSync, unlinkSync, statSync} from 'fs'
-
-const dagPB = require('ipld-dag-pb')
-const UnixFS = require('ipfs-unixfs')
+import path from 'path'
+import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'fs'
 
 import express from 'express'
 import morgan from 'morgan'
 import request from 'request'
 
 import os from 'os'
-import readline from 'readline'
 import program from 'commander'
 
 import sera from '@evius/sera'
@@ -20,16 +15,12 @@ import atma from '@evius/atma-client'
 
 import log from './lib/log'
 import deploy from './lib/deploy'
+import login from './lib/login'
 
 const homedir = os.homedir()
 if(!existsSync(path.join(homedir, '.serph'))) {
 	mkdirSync(path.join(homedir, '.serph'))
 }
-
-const rl = readline.createInterface({
-	input: process.stdin,
-	output: process.stdout
-})
 
 atma.init({
 	server: 'http://localhost:6969'
@@ -125,99 +116,13 @@ program
 		}
 	})
 
-
-
 program
 	.command('deploy')
-	.description('deploy your static site')
-	.action(async function () {
-		cmdValue = 'deploy'
-		
-		deploy()
-	})
-
-program
-	.command('test')
+	.description('deploy your static site to serph.network')
 	.action(function () {
-		cmdValue = 'test'
+		cmdValue = 'deploy'
 
-		const APP_DIR = process.cwd()
-		const APP_DIR_SPLIT = APP_DIR.split(sep)
-		const APP_INDEX = APP_DIR_SPLIT.length
-
-		recursive(APP_DIR, ['.*'], async (err, files) => {
-			const filesStats = files.map((f) => ({
-				path: f,
-				isDir: statSync(f).isDirectory()
-			}))
-			const filesFilter = filesStats.filter((f) => !f.isDir)
-			const final = await Promise.all(filesFilter.map((f) => {
-				return new Promise((resolve, reject) => {
-					const buff = readFileSync(f.path)
-					const file = new UnixFS('file', buff)
-					dagPB.DAGNode.create(file.marshal(), (err, node) => {
-						if(err) return reject(err)
-						resolve({
-							path: f.path,
-							hash: node._cid.toBaseEncodedString()
-						})
-					})
-				})
-			}))
-
-			const finalTransform = final.map((f) => {
-				const PATH_SPLIT = f.path.split(sep)
-				const finalPath = `${PATH_SPLIT.slice(APP_INDEX).join(sep)}`
-				return {
-					path: finalPath,
-					hash: f.hash,
-					address: {
-						[`/${finalPath}`]: f.hash
-					}
-				}
-			})
-
-			const authFile = path.join(homedir, '.serph', 'auth.json')
-			const auth = JSON.parse(readFileSync(authFile))
-			const response = await atma.requestAccessToken('serph', auth.token)
-			const accessToken = response.data.data
-
-			request.post({
-				url: 'http://localhost:7000/api/files/prepare',
-				form: {
-					filesAddress: JSON.stringify(finalTransform)
-				},
-				headers: {
-					authorization: `bearer ${accessToken}`
-				}
-			}, (err, httpResponse, body) => {
-				if(err) {
-					console.log(err)
-					return process.exit(1)
-				}
-				try {
-					const parseBody = JSON.parse(body)
-
-					// console.log(parseBody.data)
-
-					const filesToUploadPath = parseBody.data.filesToUpload.map((f) => (f.path))
-
-					if(filesToUploadPath.length > 0) {
-						console.log(`uploading ${filesToUploadPath.length} files`)
-						deploy(parseBody.data.deploymentPath, filesToUploadPath)
-					}
-					else{
-						console.log('nothing to upload')
-						process.exit(0)
-					}
-
-					// return process.exit(0)	
-				} catch (err) {
-					console.log(err)
-					process.exit(1)
-				}
-			})
-		})
+		deploy()
 	})
 
 program
@@ -289,62 +194,14 @@ program
 			process.exit(0)
 		}
 	})
+	
 program
 	.command('login')
 	.description('login with evius account')
 	.action(function () {
 		cmdValue = 'login'
 		
-		const authFile = path.join(homedir, '.serph', 'auth.json')
-		if(existsSync(authFile)) {
-			const auth = JSON.parse(readFileSync(authFile))
-			if(auth.token) {
-				console.log(`Already logged in with ${auth.email}`)
-				process.exit(0)
-			}
-			else{
-				rl.question('Email: ', async (answer) => {
-					console.log('Logging in...')
-					try {
-						const response = await atma.login(answer)
-						console.log('Check your email')
-						console.log(`Waiting confirmation with code: ${response.data.data.codename}`)
-						atma.onAuth((response) => {
-							if(response) {
-								console.log('login successful')
-								Object.assign(response.data, {email: answer})
-								writeFileSync(path.join(homedir, '.serph', 'auth.json'), JSON.stringify(response.data))
-								process.exit(0)
-							}
-						})
-					} catch (err) {
-						console.error(err.response.data)
-						process.exit(1)
-					}
-				})
-			}
-		}
-		else{
-			rl.question('Email: ', async (answer) => {
-				console.log('Logging in...')
-				try {
-					const response = await atma.login(answer)
-					console.log('Check your email')
-					console.log(`Waiting confirmation with code: ${response.data.data.codename}`)
-					atma.onAuth((response) => {
-						if(response) {
-							console.log('login successful')
-							Object.assign(response.data, {email: answer})
-							writeFileSync(path.join(homedir, '.serph', 'auth.json'), JSON.stringify(response.data))
-							process.exit(0)
-						}
-					})
-				} catch (err) {
-					console.error(err.response.data)
-					process.exit(1)
-				}
-			})
-		}
+		login()
 	})
 
 program
