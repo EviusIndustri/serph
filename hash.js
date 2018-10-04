@@ -1,21 +1,26 @@
-const dagPB = require('ipld-dag-pb')
-const UnixFS = require('ipfs-unixfs')
-import {readFileSync} from 'fs'
+import {importer} from 'ipfs-unixfs-engine'
+import IPLD from 'ipld'
+import { createReadStream } from 'fs'
+import pull from 'pull-stream'
+import CID from 'cids'
+import toPull from 'stream-to-pull-stream'
 
-const fileBuffer = readFileSync('./index.js')
+const files = [
+	'/home/riqi/Projects/serph-cli/Charlotte-Episode-1.mp4'
+]
 
-const file = new UnixFS('file', fileBuffer)
-
-dagPB.DAGNode.create(file.marshal(), (err, node) => {
-	if(err) return console.error(err)
-	console.log(node._cid.toBaseEncodedString()) // nb. try to use this method instead of the multihashes module
-	// output QmRFSrX7MJW5P7YjdDoe4ckEEMVMSpnR5WnFNxgbggjwH1
-
-	// JS version:
-	// $ jsipfs add index.js 
-	// added QmRFSrX7MJW5P7YjdDoe4ckEEMVMSpnR5WnFNxgbggjwH1 index.js
-
-	// Go version:
-	// $ ipfs add index.js 
-	// added QmRFSrX7MJW5P7YjdDoe4ckEEMVMSpnR5WnFNxgbggjwH1 index.js
+IPLD.inMemory((err, ipld) => {
+	pull(
+		pull.values(files),
+		pull.map((file) => ({
+			path: file,
+			content: toPull.source(createReadStream(file))
+		})),
+		importer(ipld),
+		pull.collect((err, files) => {
+			if(err) return console.error(err)
+			const cid = new CID(0, 'dag-pb', files[0].multihash)
+			console.log(cid.toBaseEncodedString())
+		})
+	)
 })
