@@ -45,6 +45,8 @@
     "mime-types": "^2.1.20",
     "morgan": "^1.9.0",
     "nanohtml": "^1.2.4",
+    "pull-merge": "^1.0.4",
+    "pull-sort": "^1.0.1",
     "pull-stream": "^3.6.9",
     "recursive-readdir": "^2.2.2",
     "request": "^2.88.0",

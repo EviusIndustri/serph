@@ -32,32 +32,42 @@ const hashGeneration = (files) => {
 	const APP_DIR = process.cwd()
 	const APP_DIR_SPLIT = APP_DIR.split(path.sep)
 	const APP_INDEX = APP_DIR_SPLIT.length
+	const OWNER_PATH = stripPath(APP_INDEX, `${APP_DIR}/owner`)
+
+	const inputFiles = files.map((file) => ({
+		path: stripPath(APP_INDEX, file),
+		content: toPull.source(createReadStream(file))
+	}))
+	// inputFiles.push({
+	// 	path: OWNER_PATH,
+	// 	content: toPull.source(toStream(Buffer.from(user._id, 'utf8')))
+	// })
+
 	return new Promise((resolve, reject) => {
 		IPLD.inMemory((err, ipld) => {
 			pull(
-				pull.values(files),
-				pull.map((file) => ({
-					path: stripPath(APP_INDEX, file),
-					content: toPull.source(createReadStream(file))
-				})),
+				pull.values(inputFiles),
 				importer(ipld, {
 					onlyHash: true
 				}),
 				pull.map((node) => ({
 					path: stripPath(2, node.path),
 					hash: new CID(0, 'dag-pb', node.multihash).toBaseEncodedString(),
-					isDir: statSync(fullPath(APP_DIR, node.path)).isDirectory()
+					isDir: node.path === OWNER_PATH ? false : statSync(fullPath(APP_DIR, node.path)).isDirectory()
 				})),
-				pull.filter((node) => ( !node.isDir )),
+				// pull.filter((node) => ( !node.isDir )),
 				pull.map((node) => ({
 					path: node.path,
 					hash: node.hash,
+					isDir: node.isDir,
 					address: {
 						[`/${node.path}`]: node.hash
 					}
 				})),
 				pull.collect((err, files) => {
 					if(err) return reject(err)
+					// console.log(files)
+					files.pop()
 					resolve(files)
 				})
 			)
@@ -97,17 +107,30 @@ const pre = async (user, config) => {
 				try {
 					const parseBody = JSON.parse(body)
 
-					const filesToUploadPath = parseBody.data.filesToUpload.map((f) => (f.path))
-
-					if(filesToUploadPath.length > 0) {
+					if(parseBody.data.filesToUpload.length > 0) {
 						resolve({
-							deploymentPath: parseBody.data.deploymentPath, 
-							filesToUpload: filesToUploadPath
+							deploymentPath: parseBody.data.deploymentPath,
+							filesToUpload: parseBody.data.filesToUpload
 						})
 					}
 					else{
 						console.log(`> no new files to be deployed`)
-						process.exit(0)
+						if(parseBody.data.similarName) {
+							console.log(`> similar deployment found at ${log.url(`https://${parseBody.data.similarName}.serph.network`)}`)
+							console.log(`  > Hash: ${log.bold(parseBody.data.similarHash)}`)
+						}
+						utils.prompt.question('> continue deployment? [yes/no] ', async (answer) => {
+							answer = answer.toLowerCase()
+							if(answer === 'y' || answer === 'yes') {
+								resolve({
+									deploymentPath: parseBody.data.deploymentPath,
+									filesToUpload: parseBody.data.filesToUpload
+								})
+							}
+							else{
+								process.exit(0)
+							}
+						})
 					}
 				} catch (err) {
 					console.log(err)
@@ -124,6 +147,7 @@ const main = async (user, config, deploymentPath, filesToUpload) => {
 
 		if(existsSync(path.join(APP_DIR, 'index.html'))) {
 			console.log(`> packing ${log.bold(filesToUpload.length)} files...`)
+			const filesToPack = filesToUpload.filter((f) => ( f !== 'owner' ))
 
 			let [accessToken, _err] = await utils.auth.requestAccessToken(user.token)
 			if(_err) return console.error(_err)
@@ -131,7 +155,7 @@ const main = async (user, config, deploymentPath, filesToUpload) => {
 			let buff = []
 
 			const tarStream = tar.pack(APP_DIR, {
-				entries: filesToUpload
+				entries: filesToPack
 			}).pipe(zlib.Gzip())
 
 			let totalData = 0
@@ -158,9 +182,9 @@ const main = async (user, config, deploymentPath, filesToUpload) => {
 				readable.on('end', () => {
 					progressBar.stop()
 					console.log(`> building your deployment...`)
-					if(filesToUpload.length > 1000) {
-						console.log(`> processing huge amount of files [${filesToUpload.length}]. probably `)
-					}
+					// if(filesToPack.length > 1000) {
+					// 	console.log(`> processing huge amount of files [${filesToPack.length}]. probably `)
+					// }
 				})
 
 				const r = request.post({
@@ -179,6 +203,7 @@ const main = async (user, config, deploymentPath, filesToUpload) => {
 
 					if(parseBody.status === 'error') {
 						console.log(log.error('> Something went wrong. Please come back later.'))
+						console.log(parseBody)
 						return process.exit(1)
 					}
 					resolve()
