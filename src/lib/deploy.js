@@ -38,10 +38,6 @@ const hashGeneration = (files) => {
 		path: stripPath(APP_INDEX, file),
 		content: toPull.source(createReadStream(file))
 	}))
-	// inputFiles.push({
-	// 	path: OWNER_PATH,
-	// 	content: toPull.source(toStream(Buffer.from(user._id, 'utf8')))
-	// })
 
 	return new Promise((resolve, reject) => {
 		IPLD.inMemory((err, ipld) => {

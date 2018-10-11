@@ -36,13 +36,12 @@ const login = (email) => {
 	return new Promise( async (resolve, reject) => {
 		try {
 			const response = await atma.login(email)
-			atma.onAuth((response) => {
-				if(response) {
-					Object.assign(response.data, {email: email})
-					writeFileSync(path.join(HOME_DIR, '.serph', 'auth.json'), JSON.stringify(response.data))
+			atma.confirmPooling(email, response.data.data.codename)
+				.then((response) => {
+					Object.assign(response.data.data, {email: email})
+					writeFileSync(path.join(HOME_DIR, '.serph', 'auth.json'), JSON.stringify(response.data.data))
 					resolve([true, null])
-				}
-			})
+				})
 			console.log(`> we just sent you verification email with access code: ${log.bold(response.data.data.codename)}`)
 		} catch (err) {
 			const _err = err.response.data
