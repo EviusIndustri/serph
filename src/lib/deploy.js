@@ -17,6 +17,9 @@ import pull from 'pull-stream'
 import CID from 'cids'
 import toPull from 'stream-to-pull-stream'
 
+// const BASE_URL = 'http://localhost:7000'
+const BASE_URL = 'http://serph.network'
+
 const stripPath = (index, targetPath) => {
 	const PATH_SPLIT = targetPath.split(path.sep)
 	return `${PATH_SPLIT.slice(index - 1).join(path.sep)}`
@@ -88,7 +91,7 @@ const pre = async (user, config) => {
 			const final = await hashGeneration(files)
 
 			request.post({
-				url: 'http://localhost:7000/api/deployments/prepare',
+				url: `${BASE_URL}/api/deployments/prepare`,
 				form: {
 					filesAddress: JSON.stringify(final)
 				},
@@ -184,7 +187,7 @@ const main = async (user, config, deploymentPath, filesToUpload) => {
 				})
 
 				const r = request.post({
-					url: 'http://localhost:7000/api/deployments/upload-cli',
+					url: `${BASE_URL}/api/deployments/upload-cli`,
 					headers: {
 						'authorization': `bearer ${accessToken}`,
 						'x-serph-deployment': deploymentPath
@@ -224,7 +227,7 @@ const post = async (user, config, deploymentPath) => {
 		if(_err) return console.error(_err)
 
 		request.post({
-			url: 'http://localhost:7000/api/links',
+			url: `${BASE_URL}/api/links`,
 			form: {
 				link: config.link,
 				target: deploymentPath

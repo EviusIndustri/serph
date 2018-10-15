@@ -1,0 +1,1 @@
+{"version":3,"sources":["../../src/views/index.js"],"names":["module","exports","page404"],"mappings":";;AAAA;;;;;;AAEAA,OAAOC,OAAP,GAAiB;AAChBC,UAASA;AADO,CAAjB","file":"index.js","sourcesContent":["import page404 from './default-404.js'\n\nmodule.exports = {\n\tpage404: page404\n}"]}

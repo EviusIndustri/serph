@@ -23,7 +23,8 @@ if(!existsSync(path.join(homedir, '.serph'))) {
 }
 
 atma.init({
-	server: 'http://localhost:6969'
+	// server: 'http://localhost:6969'
+	server: 'http://atma.serph.network'
 })
 
 const successOrError = (statusCode) => {
