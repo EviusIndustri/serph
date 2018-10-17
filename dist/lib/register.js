@@ -20,7 +20,7 @@ const main = async () => {
 		_utils2.default.prompt.question('> email: ', async answer => {
 			console.log('> logging in...');
 			try {
-				await _utils2.default.auth.login(answer);
+				await _utils2.default.auth.register(answer);
 				console.log(`> successfully logged in!`);
 				process.exit(0);
 			} catch (err) {
@@ -31,4 +31,4 @@ const main = async () => {
 };
 
 exports.default = main;
-//# sourceMappingURL=login.js.map
+//# sourceMappingURL=register.js.map

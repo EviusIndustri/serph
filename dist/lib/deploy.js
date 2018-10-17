@@ -42,6 +42,10 @@ var _log = require('./log');
 
 var _log2 = _interopRequireDefault(_log);
 
+var _config = require('./config');
+
+var _config2 = _interopRequireDefault(_config);
+
 var _ipfsUnixfsEngine = require('ipfs-unixfs-engine');
 
 var _ipld = require('ipld');
@@ -61,9 +65,6 @@ var _streamToPullStream = require('stream-to-pull-stream');
 var _streamToPullStream2 = _interopRequireDefault(_streamToPullStream);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-// const BASE_URL = 'http://localhost:7000'
-const BASE_URL = 'http://serph.network';
 
 const stripPath = (index, targetPath) => {
 	const PATH_SPLIT = targetPath.split(_path2.default.sep);
@@ -93,12 +94,12 @@ const hashGeneration = files => {
 				onlyHash: true
 			}), _pullStream2.default.map(node => ({
 				path: stripPath(2, node.path),
+				size: node.size,
 				hash: new _cids2.default(0, 'dag-pb', node.multihash).toBaseEncodedString(),
 				isDir: node.path === OWNER_PATH ? false : (0, _fs.statSync)(fullPath(APP_DIR, node.path)).isDirectory()
-			})),
-			// pull.filter((node) => ( !node.isDir )),
-			_pullStream2.default.map(node => ({
+			})), _pullStream2.default.map(node => ({
 				path: node.path,
+				size: node.size,
 				hash: node.hash,
 				isDir: node.isDir,
 				address: {
@@ -106,7 +107,6 @@ const hashGeneration = files => {
 				}
 			})), _pullStream2.default.collect((err, files) => {
 				if (err) return reject(err);
-				// console.log(files)
 				files.pop();
 				resolve(files);
 			}));
@@ -114,24 +114,23 @@ const hashGeneration = files => {
 	});
 };
 
-const pre = async (user, config) => {
+const pre = async (user, siteConfig) => {
 	return new Promise(async resolve => {
 		let [accessToken, _err] = await _utils2.default.auth.requestAccessToken(user.token);
-
 		if (_err) return _utils2.default.logger.error(_err);
 
 		const APP_DIR = process.cwd();
 
 		console.log('> preparing your files...');
 
-		const ignores = config && config.ignores ? config.ignores : [''];
+		const ignores = siteConfig && siteConfig.ignores ? siteConfig.ignores : [''];
 
 		(0, _recursiveReaddir2.default)(APP_DIR, ignores, async (err, files) => {
 			console.log(`> generating hash address for ${_log2.default.bold(files.length)} files...`);
 			const final = await hashGeneration(files);
 
 			_request2.default.post({
-				url: `${BASE_URL}/api/deployments/prepare`,
+				url: `${_config2.default.BASE_URL}/api/deployments/prepare`,
 				form: {
 					filesAddress: JSON.stringify(final)
 				},
@@ -178,7 +177,7 @@ const pre = async (user, config) => {
 	});
 };
 
-const main = async (user, config, deploymentPath, filesToUpload) => {
+const main = async (user, siteConfig, deploymentPath, filesToUpload) => {
 	return new Promise(async resolve => {
 		const APP_DIR = process.cwd();
 
@@ -225,7 +224,7 @@ const main = async (user, config, deploymentPath, filesToUpload) => {
 				});
 
 				const r = _request2.default.post({
-					url: `${BASE_URL}/api/deployments/upload-cli`,
+					url: `${_config2.default.BASE_URL}/api/deployments/upload-cli`,
 					headers: {
 						'authorization': `bearer ${accessToken}`,
 						'x-serph-deployment': deploymentPath
@@ -237,7 +236,6 @@ const main = async (user, config, deploymentPath, filesToUpload) => {
 						return process.exit(1);
 					}
 					const parseBody = JSON.parse(body);
-
 					if (parseBody.status === 'error') {
 						console.log(_log2.default.error('> Something went wrong. Please come back later.'));
 						console.log(parseBody);
@@ -255,18 +253,18 @@ const main = async (user, config, deploymentPath, filesToUpload) => {
 	});
 };
 
-const post = async (user, config, deploymentPath) => {
-	if (config && config.link) {
+const post = async (user, siteConfig, deploymentPath) => {
+	if (siteConfig && siteConfig.link) {
 		console.log(`> link was found on ${_log2.default.bold(`serph.json`)}`);
-		console.log(`> linking ${_log2.default.bold(config.link)} to new deployment (${_log2.default.bold(deploymentPath)})`);
+		console.log(`> linking ${_log2.default.bold(siteConfig.link)} to new deployment (${_log2.default.bold(deploymentPath)})`);
 
 		let [accessToken, _err] = await _utils2.default.auth.requestAccessToken(user.token);
 		if (_err) return console.error(_err);
 
 		_request2.default.post({
-			url: `${BASE_URL}/api/links`,
+			url: `${_config2.default.BASE_URL}/api/links`,
 			form: {
-				link: config.link,
+				link: siteConfig.link,
 				target: deploymentPath
 			},
 			headers: {
@@ -289,11 +287,11 @@ const post = async (user, config, deploymentPath) => {
 	}
 };
 
-const core = async (user, config) => {
-	const preResult = await pre(user, config);
+const core = async (user, siteConfig) => {
+	const preResult = await pre(user, siteConfig);
 	if (preResult) {
-		await main(user, config, preResult.deploymentPath, preResult.filesToUpload);
-		await post(user, config, preResult.deploymentPath);
+		await main(user, siteConfig, preResult.deploymentPath, preResult.filesToUpload);
+		await post(user, siteConfig, preResult.deploymentPath);
 	}
 };
 
@@ -310,10 +308,10 @@ const deploy = async () => {
 	const user = _utils2.default.auth.isLoggedIn();
 	if (user) {
 		if ((0, _fs.existsSync)(_path2.default.join(APP_DIR, 'serph.json'))) {
-			const config = (0, _fs.readFileSync)(_path2.default.join(APP_DIR, 'serph.json'));
+			const siteConfig = (0, _fs.readFileSync)(_path2.default.join(APP_DIR, 'serph.json'));
 			try {
-				const parseConfig = JSON.parse(config);
-				core(user, parseConfig);
+				const parseSiteConfig = JSON.parse(siteConfig);
+				core(user, parseSiteConfig);
 			} catch (err) {
 				console.log(err);
 				process.exit(1);

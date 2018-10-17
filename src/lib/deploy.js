@@ -10,15 +10,13 @@ import recursive from 'recursive-readdir'
 
 import utils from './utils'
 import log from './log'
+import config from './config'
 
 import {importer} from 'ipfs-unixfs-engine'
 import IPLD from 'ipld'
 import pull from 'pull-stream'
 import CID from 'cids'
 import toPull from 'stream-to-pull-stream'
-
-// const BASE_URL = 'http://localhost:7000'
-const BASE_URL = 'http://serph.network'
 
 const stripPath = (index, targetPath) => {
 	const PATH_SPLIT = targetPath.split(path.sep)
@@ -51,12 +49,13 @@ const hashGeneration = (files) => {
 				}),
 				pull.map((node) => ({
 					path: stripPath(2, node.path),
+					size: node.size,
 					hash: new CID(0, 'dag-pb', node.multihash).toBaseEncodedString(),
 					isDir: node.path === OWNER_PATH ? false : statSync(fullPath(APP_DIR, node.path)).isDirectory()
 				})),
-				// pull.filter((node) => ( !node.isDir )),
 				pull.map((node) => ({
 					path: node.path,
+					size: node.size,
 					hash: node.hash,
 					isDir: node.isDir,
 					address: {
@@ -65,7 +64,6 @@ const hashGeneration = (files) => {
 				})),
 				pull.collect((err, files) => {
 					if(err) return reject(err)
-					// console.log(files)
 					files.pop()
 					resolve(files)
 				})
@@ -74,24 +72,23 @@ const hashGeneration = (files) => {
 	})
 }
 
-const pre = async (user, config) => {
+const pre = async (user, siteConfig) => {
 	return new Promise(async (resolve) => {
 		let [accessToken, _err] = await utils.auth.requestAccessToken(user.token)
-
 		if(_err) return utils.logger.error(_err)
 
 		const APP_DIR = process.cwd()
 
 		console.log('> preparing your files...')
 
-		const ignores = (config && config.ignores) ? config.ignores : ['']
+		const ignores = (siteConfig && siteConfig.ignores) ? siteConfig.ignores : ['']
 	
 		recursive(APP_DIR, ignores, async (err, files) => {
 			console.log(`> generating hash address for ${log.bold(files.length)} files...`)
 			const final = await hashGeneration(files)
 
 			request.post({
-				url: `${BASE_URL}/api/deployments/prepare`,
+				url: `${config.BASE_URL}/api/deployments/prepare`,
 				form: {
 					filesAddress: JSON.stringify(final)
 				},
@@ -140,7 +137,7 @@ const pre = async (user, config) => {
 	})
 }
 
-const main = async (user, config, deploymentPath, filesToUpload) => {
+const main = async (user, siteConfig, deploymentPath, filesToUpload) => {
 	return new Promise(async (resolve) => {
 		const APP_DIR = process.cwd()
 
@@ -187,7 +184,7 @@ const main = async (user, config, deploymentPath, filesToUpload) => {
 				})
 
 				const r = request.post({
-					url: `${BASE_URL}/api/deployments/upload-cli`,
+					url: `${config.BASE_URL}/api/deployments/upload-cli`,
 					headers: {
 						'authorization': `bearer ${accessToken}`,
 						'x-serph-deployment': deploymentPath
@@ -199,7 +196,6 @@ const main = async (user, config, deploymentPath, filesToUpload) => {
 						return process.exit(1)
 					}
 					const parseBody = JSON.parse(body)
-
 					if(parseBody.status === 'error') {
 						console.log(log.error('> Something went wrong. Please come back later.'))
 						console.log(parseBody)
@@ -218,18 +214,18 @@ const main = async (user, config, deploymentPath, filesToUpload) => {
 	})	
 }
 
-const post = async (user, config, deploymentPath) => {
-	if(config && config.link) {
+const post = async (user, siteConfig, deploymentPath) => {
+	if(siteConfig && siteConfig.link) {
 		console.log(`> link was found on ${log.bold(`serph.json`)}`)
-		console.log(`> linking ${log.bold(config.link)} to new deployment (${log.bold(deploymentPath)})`)
+		console.log(`> linking ${log.bold(siteConfig.link)} to new deployment (${log.bold(deploymentPath)})`)
 		
 		let [accessToken, _err] = await utils.auth.requestAccessToken(user.token)
 		if(_err) return console.error(_err)
 
 		request.post({
-			url: `${BASE_URL}/api/links`,
+			url: `${config.BASE_URL}/api/links`,
 			form: {
-				link: config.link,
+				link: siteConfig.link,
 				target: deploymentPath
 			},
 			headers: {
@@ -254,11 +250,11 @@ const post = async (user, config, deploymentPath) => {
 	}
 }
 
-const core = async (user, config) => {
-	const preResult = await pre(user, config)
+const core = async (user, siteConfig) => {
+	const preResult = await pre(user, siteConfig)
 	if(preResult) {
-		await main(user, config, preResult.deploymentPath, preResult.filesToUpload)	
-		await post(user, config, preResult.deploymentPath)
+		await main(user, siteConfig, preResult.deploymentPath, preResult.filesToUpload)	
+		await post(user, siteConfig, preResult.deploymentPath)
 	}
 }
 
@@ -275,10 +271,10 @@ const deploy = async () => {
 	const user = utils.auth.isLoggedIn()
 	if(user) {
 		if(existsSync(path.join(APP_DIR, 'serph.json'))) {
-			const config = readFileSync(path.join(APP_DIR, 'serph.json'))
+			const siteConfig = readFileSync(path.join(APP_DIR, 'serph.json'))
 			try {
-				const parseConfig = JSON.parse(config)
-				core(user, parseConfig)
+				const parseSiteConfig = JSON.parse(siteConfig)
+				core(user, parseSiteConfig)
 			}
 			catch(err) {
 				console.log(err)

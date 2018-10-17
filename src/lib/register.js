@@ -11,7 +11,7 @@ const main = async () => {
 		utils.prompt.question('> email: ', async (answer) => {
 			console.log('> logging in...')
 			try {
-				await utils.auth.login(answer)	
+				await utils.auth.register(answer)	
 				console.log(`> successfully logged in!`)
 				process.exit(0)
 			} catch (err) {

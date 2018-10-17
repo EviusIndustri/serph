@@ -15,10 +15,6 @@ var _morgan = require('morgan');
 
 var _morgan2 = _interopRequireDefault(_morgan);
 
-var _request = require('request');
-
-var _request2 = _interopRequireDefault(_request);
-
 var _os = require('os');
 
 var _os2 = _interopRequireDefault(_os);
@@ -47,6 +43,18 @@ var _login = require('./lib/login');
 
 var _login2 = _interopRequireDefault(_login);
 
+var _register = require('./lib/register');
+
+var _register2 = _interopRequireDefault(_register);
+
+var _link = require('./lib/link');
+
+var _link2 = _interopRequireDefault(_link);
+
+var _config = require('./lib/config');
+
+var _config2 = _interopRequireDefault(_config);
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 const homedir = _os2.default.homedir();
@@ -55,8 +63,7 @@ if (!(0, _fs.existsSync)(_path2.default.join(homedir, '.serph'))) {
 }
 
 _atmaClient2.default.init({
-	// server: 'http://localhost:6969'
-	server: 'http://atma.serph.network'
+	server: _config2.default.ATMA_URL
 });
 
 const successOrError = statusCode => {
@@ -140,67 +147,16 @@ _commander2.default.command('deploy').description('deploy your static site to se
 _commander2.default.command('link').description('create new link to your deployment').arguments('<deployment> <new_link>').action(async function (deployment, new_link) {
 	cmdValue = 'link';
 
-	const authFile = _path2.default.join(homedir, '.serph', 'auth.json');
-	if ((0, _fs.existsSync)(authFile)) {
-		const auth = JSON.parse((0, _fs.readFileSync)(authFile));
-		if (auth.token) {
-			try {
-				const response = await _atmaClient2.default.requestAccessToken('serph', auth.token);
-				const accessToken = response.data.data;
-				console.log(`ᑀ authenticating...`);
-				_request2.default.post({
-					url: 'http://localhost:7000/api/links',
-					form: {
-						link: new_link,
-						target: deployment
-					},
-					headers: {
-						authorization: `bearer ${accessToken}`
-					}
-				}, (err, httpResponse, body) => {
-					if (err) {
-						console.log(err);
-						return process.exit(1);
-					}
-					try {
-						const parseBody = JSON.parse(body);
-
-						if (parseBody.status === 'error') {
-							console.log(`${_log2.default.error(`ᑀ deployment ${deployment} is not found!`)}`);
-							return process.exit(1);
-						} else if (parseBody.status === 'already_used') {
-							console.log(`${_log2.default.error(`ᑀ link ${new_link} is already used!`)}`);
-							return process.exit(1);
-						}
-
-						console.log(`ᑀ ${_log2.default.bold(new_link)} is now linking to deployment (${_log2.default.bold(deployment)})`);
-						const data = parseBody.data;
-						console.log(`ᑀ online at ${_log2.default.url(`https://${data.link}.serph.network`)}`);
-						return process.exit(0);
-					} catch (err) {
-						console.log(err);
-						process.exit(1);
-					}
-				});
-			} catch (err) {
-				console.error(err.response);
-				if (err.response.data) {
-					console.log('please login');
-					(0, _fs.unlinkSync)(authFile);
-				}
-				process.exit(1);
-			}
-		} else {
-			console.log('please login using serph login');
-			process.exit(0);
-		}
-	} else {
-		console.log('please login using serph login');
-		process.exit(0);
-	}
+	(0, _link2.default)(deployment, new_link);
 });
 
-_commander2.default.command('login').description('login with evius account').action(function () {
+_commander2.default.command('register').description('register to serph.network').action(function () {
+	cmdValue = 'register';
+
+	(0, _register2.default)();
+});
+
+_commander2.default.command('login').description('login with serph account').action(function () {
 	cmdValue = 'login';
 
 	(0, _login2.default)();

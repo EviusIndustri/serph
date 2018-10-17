@@ -5,7 +5,6 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'fs'
 
 import express from 'express'
 import morgan from 'morgan'
-import request from 'request'
 
 import os from 'os'
 import program from 'commander'
@@ -16,6 +15,9 @@ import atma from '@evius/atma-client'
 import log from './lib/log'
 import deploy from './lib/deploy'
 import login from './lib/login'
+import register from './lib/register'
+import link from './lib/link'
+import config from './lib/config'
 
 const homedir = os.homedir()
 if(!existsSync(path.join(homedir, '.serph'))) {
@@ -23,8 +25,7 @@ if(!existsSync(path.join(homedir, '.serph'))) {
 }
 
 atma.init({
-	// server: 'http://localhost:6969'
-	server: 'http://atma.serph.network'
+	server: config.ATMA_URL
 })
 
 const successOrError = (statusCode) => {
@@ -133,72 +134,21 @@ program
 	.action(async function (deployment, new_link) {
 		cmdValue = 'link'
 
-		const authFile = path.join(homedir, '.serph', 'auth.json')
-		if(existsSync(authFile)) {
-			const auth = JSON.parse(readFileSync(authFile))
-			if(auth.token) {
-				try {
-					const response = await atma.requestAccessToken('serph', auth.token)
-					const accessToken = response.data.data
-					console.log(`ᑀ authenticating...`)
-					request.post({
-						url: 'http://localhost:7000/api/links',
-						form: {
-							link: new_link,
-							target: deployment
-						},
-						headers: {
-							authorization: `bearer ${accessToken}`
-						}
-					}, (err, httpResponse, body) => {
-						if(err) {
-							console.log(err)
-							return process.exit(1)
-						}
-						try {
-							const parseBody = JSON.parse(body)
-
-							if(parseBody.status === 'error') {
-								console.log(`${log.error(`ᑀ deployment ${deployment} is not found!`)}`)
-								return process.exit(1)
-							}
-							else if(parseBody.status === 'already_used') {
-								console.log(`${log.error(`ᑀ link ${new_link} is already used!`)}`)
-								return process.exit(1)
-							}
-
-							console.log(`ᑀ ${log.bold(new_link)} is now linking to deployment (${log.bold(deployment)})`)
-							const data = parseBody.data
-							console.log(`ᑀ online at ${log.url(`https://${data.link}.serph.network`)}`)
-							return process.exit(0)	
-						} catch (err) {
-							console.log(err)
-							process.exit(1)
-						}
-					})
-				} catch (err) {
-					console.error(err.response)
-					if(err.response.data) {
-						console.log('please login')
-						unlinkSync(authFile)
-					}
-					process.exit(1)
-				}
-			}
-			else{
-				console.log('please login using serph login')
-				process.exit(0)
-			}
-		}
-		else{
-			console.log('please login using serph login')
-			process.exit(0)
-		}
+		link(deployment, new_link)
 	})
-	
+
+program
+	.command('register')
+	.description('register to serph.network')
+	.action(function () {
+		cmdValue = 'register'
+		
+		register()
+	})	
+
 program
 	.command('login')
-	.description('login with evius account')
+	.description('login with serph account')
 	.action(function () {
 		cmdValue = 'login'
 		

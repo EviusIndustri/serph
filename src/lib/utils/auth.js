@@ -40,17 +40,30 @@ const login = (email) => {
 				.then((response) => {
 					Object.assign(response.data.data, {email: email})
 					writeFileSync(path.join(HOME_DIR, '.serph', 'auth.json'), JSON.stringify(response.data.data))
-					resolve([true, null])
+					resolve()
 				})
 			console.log(`> we just sent you verification email with access code: ${log.bold(response.data.data.codename)}`)
 		} catch (err) {
 			const _err = err.response.data
-			if(_err.status === 'not_registered') {
-				reject([null, _err.message])
-			}
-			else{
-				reject([null, _err.message])
-			}
+			reject(_err.message)
+		}
+	})
+}
+
+const register = (email) => {
+	return new Promise( async (resolve, reject) => {
+		try {
+			const response = await atma.register(email)
+			atma.confirmPooling(email, response.data.data.codename)
+				.then((response) => {
+					Object.assign(response.data.data, {email: email})
+					writeFileSync(path.join(HOME_DIR, '.serph', 'auth.json'), JSON.stringify(response.data.data))
+					resolve()
+				})
+			console.log(`> we just sent you verification email with access code: ${log.bold(response.data.data.codename)}`)
+		} catch (err) {
+			const _err = err.response.data
+			reject(_err.message)
 		}
 	})
 }
@@ -58,5 +71,6 @@ const login = (email) => {
 module.exports = {
 	isLoggedIn,
 	requestAccessToken,
-	login
+	login,
+	register
 }
