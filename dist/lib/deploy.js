@@ -68,7 +68,7 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 
 const stripPath = (index, targetPath) => {
 	const PATH_SPLIT = targetPath.split(_path2.default.sep);
-	return PATH_SPLIT.slice(index - 1).join(_path2.default.sep).replace(/\\/g, '/');
+	return PATH_SPLIT.slice(index - 1).join(_path2.default.sep);
 };
 
 const fullPath = (APP_DIR, targetPath) => {
@@ -94,7 +94,7 @@ const hashGeneration = files => {
 				onlyHash: true,
 				wrap: true
 			}), _pullStream2.default.map(node => ({
-				path: stripPath(2, node.path),
+				path: stripPath(2, node.path).replace(/\\/g, '/'),
 				size: node.size,
 				hash: new _cids2.default(0, 'dag-pb', node.multihash).toBaseEncodedString(),
 				isDir: node.path === OWNER_PATH ? false : (0, _fs.statSync)(fullPath(APP_DIR, node.path)).isDirectory()
@@ -144,7 +144,6 @@ const pre = async (user, siteConfig) => {
 					return process.exit(1);
 				}
 				try {
-					console.log(body);
 					const parseBody = JSON.parse(body);
 
 					if (parseBody.data.filesToUpload.length > 0) {

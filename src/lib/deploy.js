@@ -49,7 +49,7 @@ const hashGeneration = (files) => {
 					wrap: true
 				}),
 				pull.map((node) => ({
-					path: stripPath(2, node.path).replace('/\\/g', '/'),
+					path: stripPath(2, node.path).replace(/\\/g, '/'),
 					size: node.size,
 					hash: new CID(0, 'dag-pb', node.multihash).toBaseEncodedString(),
 					isDir: node.path === OWNER_PATH ? false : statSync(fullPath(APP_DIR, node.path)).isDirectory()
