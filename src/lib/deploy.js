@@ -20,7 +20,7 @@ import toPull from 'stream-to-pull-stream'
 
 const stripPath = (index, targetPath) => {
 	const PATH_SPLIT = targetPath.split(path.sep)
-	return PATH_SPLIT.slice(index - 1).join(path.sep).replace(/\\/g, '/') + '/'
+	return PATH_SPLIT.slice(index - 1).join(path.sep).replace(/\\/g, '/')
 }
 
 const fullPath = (APP_DIR, targetPath) => {
