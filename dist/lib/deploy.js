@@ -68,12 +68,12 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 
 const stripPath = (index, targetPath) => {
 	const PATH_SPLIT = targetPath.split(_path2.default.sep);
-	return `${PATH_SPLIT.slice(index - 1).join(_path2.default.sep)}`;
+	return PATH_SPLIT.slice(index - 1).join(_path2.default.sep).replace(/\\/g, '/');
 };
 
 const fullPath = (APP_DIR, targetPath) => {
-	const baseSplit = APP_DIR.split('/');
-	const baseFinal = baseSplit.slice(0, baseSplit.length - 1).join('/');
+	const baseSplit = APP_DIR.split(_path2.default.sep);
+	const baseFinal = baseSplit.slice(0, baseSplit.length - 1).join(_path2.default.sep);
 	return _path2.default.join(baseFinal, targetPath);
 };
 
@@ -81,7 +81,7 @@ const hashGeneration = files => {
 	const APP_DIR = process.cwd();
 	const APP_DIR_SPLIT = APP_DIR.split(_path2.default.sep);
 	const APP_INDEX = APP_DIR_SPLIT.length;
-	const OWNER_PATH = stripPath(APP_INDEX, `${APP_DIR}/owner`);
+	const OWNER_PATH = stripPath(APP_INDEX, `${APP_DIR}${_path2.default.sep}owner`);
 
 	const inputFiles = files.map(file => ({
 		path: stripPath(APP_INDEX, file),
@@ -91,7 +91,8 @@ const hashGeneration = files => {
 	return new Promise((resolve, reject) => {
 		_ipld2.default.inMemory((err, ipld) => {
 			(0, _pullStream2.default)(_pullStream2.default.values(inputFiles), (0, _ipfsUnixfsEngine.importer)(ipld, {
-				onlyHash: true
+				onlyHash: true,
+				wrap: true
 			}), _pullStream2.default.map(node => ({
 				path: stripPath(2, node.path),
 				size: node.size,
@@ -143,6 +144,7 @@ const pre = async (user, siteConfig) => {
 					return process.exit(1);
 				}
 				try {
+					console.log(body);
 					const parseBody = JSON.parse(body);
 
 					if (parseBody.data.filesToUpload.length > 0) {

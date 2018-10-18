@@ -20,7 +20,7 @@ import toPull from 'stream-to-pull-stream'
 
 const stripPath = (index, targetPath) => {
 	const PATH_SPLIT = targetPath.split(path.sep)
-	return PATH_SPLIT.slice(index - 1).join(path.sep).replace(/\\/g, '/')
+	return PATH_SPLIT.slice(index - 1).join(path.sep)
 }
 
 const fullPath = (APP_DIR, targetPath) => {
@@ -49,7 +49,7 @@ const hashGeneration = (files) => {
 					wrap: true
 				}),
 				pull.map((node) => ({
-					path: stripPath(2, node.path),
+					path: stripPath(2, node.path).replace('/\\/g', '/'),
 					size: node.size,
 					hash: new CID(0, 'dag-pb', node.multihash).toBaseEncodedString(),
 					isDir: node.path === OWNER_PATH ? false : statSync(fullPath(APP_DIR, node.path)).isDirectory()
@@ -102,7 +102,6 @@ const pre = async (user, siteConfig) => {
 					return process.exit(1)
 				}
 				try {
-					console.log(body)
 					const parseBody = JSON.parse(body)
 
 					if(parseBody.data.filesToUpload.length > 0) {
