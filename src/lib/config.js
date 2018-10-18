@@ -1,6 +1,6 @@
 const production = {
 	BASE_URL: 'https://serph.network',
-	ATMA_URL: 'http://atma.serph.network'
+	ATMA_URL: 'https://atma.serph.network'
 }
 
 const development = {
