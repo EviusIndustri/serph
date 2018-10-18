@@ -20,12 +20,12 @@ import toPull from 'stream-to-pull-stream'
 
 const stripPath = (index, targetPath) => {
 	const PATH_SPLIT = targetPath.split(path.sep)
-	return `${PATH_SPLIT.slice(index - 1).join(path.sep)}`
+	return PATH_SPLIT.slice(index - 1).join(path.sep).replace(/\\/g, '/') + '/'
 }
 
 const fullPath = (APP_DIR, targetPath) => {
-	const baseSplit = APP_DIR.split('/')
-	const baseFinal = baseSplit.slice(0, baseSplit.length - 1).join('/')
+	const baseSplit = APP_DIR.split(path.sep)
+	const baseFinal = baseSplit.slice(0, baseSplit.length - 1).join(path.sep)
 	return path.join(baseFinal, targetPath)
 }
 
@@ -33,7 +33,7 @@ const hashGeneration = (files) => {
 	const APP_DIR = process.cwd()
 	const APP_DIR_SPLIT = APP_DIR.split(path.sep)
 	const APP_INDEX = APP_DIR_SPLIT.length
-	const OWNER_PATH = stripPath(APP_INDEX, `${APP_DIR}/owner`)
+	const OWNER_PATH = stripPath(APP_INDEX, `${APP_DIR}${path.sep}owner`)
 
 	const inputFiles = files.map((file) => ({
 		path: stripPath(APP_INDEX, file),
@@ -44,8 +44,9 @@ const hashGeneration = (files) => {
 		IPLD.inMemory((err, ipld) => {
 			pull(
 				pull.values(inputFiles),
-				importer(ipld, {
-					onlyHash: true
+				importer(ipld, {	
+					onlyHash: true,
+					wrap: true
 				}),
 				pull.map((node) => ({
 					path: stripPath(2, node.path),
@@ -101,6 +102,7 @@ const pre = async (user, siteConfig) => {
 					return process.exit(1)
 				}
 				try {
+					console.log(body)
 					const parseBody = JSON.parse(body)
 
 					if(parseBody.data.filesToUpload.length > 0) {
