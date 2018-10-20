@@ -5,7 +5,7 @@ const production = {
 
 const development = {
 	BASE_URL: 'http://localhost:7000',
-	ATMA_URL: 'http://localhost:6969'
+	ATMA_URL: 'https://atma.serph.network'
 }
 
-export default production
+export default development

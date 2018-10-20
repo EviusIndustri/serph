@@ -1,6 +1,6 @@
 {
   "name": "@evius/serph",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "",
   "author": "Rahmat Albariqi <ra@evius.id>",
   "license": "MIT",
@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@evius/atma-client": "^1.0.1",
+    "@evius/ipld": "git+https://github.com/EviusIndustri/js-ipld.git",
     "@evius/sera": "0.0.4",
     "babel-cli": "^6.26.0",
     "babel-plugin-transform-class-properties": "^6.24.1",

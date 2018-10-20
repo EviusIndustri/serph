@@ -48,7 +48,7 @@ var _config2 = _interopRequireDefault(_config);
 
 var _ipfsUnixfsEngine = require('ipfs-unixfs-engine');
 
-var _ipld = require('ipld');
+var _ipld = require('@evius/ipld');
 
 var _ipld2 = _interopRequireDefault(_ipld);
 
@@ -64,7 +64,11 @@ var _streamToPullStream = require('stream-to-pull-stream');
 
 var _streamToPullStream2 = _interopRequireDefault(_streamToPullStream);
 
+var _os = require('os');
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+const HOME_DIR = (0, _os.homedir)();
 
 const stripPath = (index, targetPath) => {
 	const PATH_SPLIT = targetPath.split(_path2.default.sep);
@@ -111,7 +115,7 @@ const hashGeneration = files => {
 				files.pop();
 				resolve(files);
 			}));
-		});
+		}, _path2.default.join(HOME_DIR, '.serph'));
 	});
 };
 

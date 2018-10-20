@@ -13,10 +13,13 @@ import log from './log'
 import config from './config'
 
 import {importer} from 'ipfs-unixfs-engine'
-import IPLD from 'ipld'
+import IPLD from '@evius/ipld'
 import pull from 'pull-stream'
 import CID from 'cids'
 import toPull from 'stream-to-pull-stream'
+import { homedir } from 'os'
+
+const HOME_DIR = homedir()
 
 const stripPath = (index, targetPath) => {
 	const PATH_SPLIT = targetPath.split(path.sep)
@@ -69,7 +72,7 @@ const hashGeneration = (files) => {
 					resolve(files)
 				})
 			)
-		})
+		}, path.join(HOME_DIR, '.serph'))
 	})
 }
 

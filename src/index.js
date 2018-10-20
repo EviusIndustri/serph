@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-require("tls").DEFAULT_ECDH_CURVE = "auto"
+import tls from 'tls'
+tls.DEFAULT_ECDH_CURVE = 'auto'
+
 import path from 'path'
 import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'fs'
 

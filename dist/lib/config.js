@@ -10,8 +10,8 @@ const production = {
 
 const development = {
 	BASE_URL: 'http://localhost:7000',
-	ATMA_URL: 'http://localhost:6969'
+	ATMA_URL: 'https://atma.serph.network'
 };
 
-exports.default = production;
+exports.default = development;
 //# sourceMappingURL=config.js.map

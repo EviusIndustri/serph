@@ -1,64 +1,67 @@
 #!/usr/bin/env node
-"use strict";
+'use strict';
 
-var _path = require("path");
+var _tls = require('tls');
+
+var _tls2 = _interopRequireDefault(_tls);
+
+var _path = require('path');
 
 var _path2 = _interopRequireDefault(_path);
 
-var _fs = require("fs");
+var _fs = require('fs');
 
-var _express = require("express");
+var _express = require('express');
 
 var _express2 = _interopRequireDefault(_express);
 
-var _morgan = require("morgan");
+var _morgan = require('morgan');
 
 var _morgan2 = _interopRequireDefault(_morgan);
 
-var _os = require("os");
+var _os = require('os');
 
 var _os2 = _interopRequireDefault(_os);
 
-var _commander = require("commander");
+var _commander = require('commander');
 
 var _commander2 = _interopRequireDefault(_commander);
 
-var _sera = require("@evius/sera");
+var _sera = require('@evius/sera');
 
 var _sera2 = _interopRequireDefault(_sera);
 
-var _atmaClient = require("@evius/atma-client");
+var _atmaClient = require('@evius/atma-client');
 
 var _atmaClient2 = _interopRequireDefault(_atmaClient);
 
-var _log = require("./lib/log");
+var _log = require('./lib/log');
 
 var _log2 = _interopRequireDefault(_log);
 
-var _deploy = require("./lib/deploy");
+var _deploy = require('./lib/deploy');
 
 var _deploy2 = _interopRequireDefault(_deploy);
 
-var _login = require("./lib/login");
+var _login = require('./lib/login');
 
 var _login2 = _interopRequireDefault(_login);
 
-var _register = require("./lib/register");
+var _register = require('./lib/register');
 
 var _register2 = _interopRequireDefault(_register);
 
-var _link = require("./lib/link");
+var _link = require('./lib/link');
 
 var _link2 = _interopRequireDefault(_link);
 
-var _config = require("./lib/config");
+var _config = require('./lib/config');
 
 var _config2 = _interopRequireDefault(_config);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-require("tls").DEFAULT_ECDH_CURVE = "auto";
-
+_tls2.default.DEFAULT_ECDH_CURVE = 'auto';
 
 const homedir = _os2.default.homedir();
 if (!(0, _fs.existsSync)(_path2.default.join(homedir, '.serph'))) {
